@@ -29,7 +29,7 @@ torch._inductor.config.triton.unique_kernel_names = True
 torch._inductor.config.fx_graph_cache = True 
 torch._functorch.config.enable_autograd_cache = True
 
-default_device = 'cuda' if torch.cuda.is_available() else 'cpu'
+default_device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
 
 create_block_mask = torch.compile(create_block_mask)
 
