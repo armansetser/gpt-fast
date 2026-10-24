@@ -356,11 +356,16 @@ class WeightOnlyInt8Linear(torch.nn.Module):
 
 ##### weight only int4 per channel groupwise quantized code ######
 
+def convert_weight_to_int4pack(weight_int32, inner_k_tiles):
+    # Newer PyTorch expects two 4-bit values packed per uint8 byte
+    weight_uint8 = (weight_int32[::, ::2] << 4 | weight_int32[::, 1::2]).to(torch.uint8)
+    return torch.ops.aten._convert_weight_to_int4pack(weight_uint8, inner_k_tiles)
+
 def prepare_int4_weight_and_scales_and_zeros(weight_bf16, groupsize, inner_k_tiles):
     weight_int32, scales_and_zeros = group_quantize_tensor(
         weight_bf16, n_bit=4, groupsize=groupsize
     )
-    weight_int4pack = torch.ops.aten._convert_weight_to_int4pack(weight_int32, inner_k_tiles)
+    weight_int4pack = convert_weight_to_int4pack(weight_int32, inner_k_tiles)
     return weight_int4pack, scales_and_zeros
 
 
@@ -466,7 +471,7 @@ class WeightOnlyInt4GPTQQuantHandler(GPTQQuantHandler):
             new_k = find_multiple(k, 1024)
             # how much we need to pad the weight
             delta_k = new_k - q.shape[1]
-            final_q = torch.ops.aten._convert_weight_to_int4pack(F.pad(q, pad=(0, delta_k)), inner_k_tiles)
+            final_q = convert_weight_to_int4pack(F.pad(q, pad=(0, delta_k)), inner_k_tiles)
             scales_and_zeros = pack_scales_and_zeros(*qparams)
             # how many new groups we need for padded weight
             delta_groups = new_k // groupsize - scales_and_zeros.shape[0]
